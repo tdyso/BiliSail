@@ -17,7 +17,14 @@ import 'media_kit_video_output.dart';
 import 'video_output.dart';
 
 /// Call at application startup before creating an engine.
-void initializePlayerBackend() => mk.MediaKit.ensureInitialized();
+///
+/// OpenHarmony has no libmpv asset yet; the media-kit probe cannot resolve a
+/// library there. Skip registration instead of failing application startup —
+/// engine creation still fails loudly when playback is actually requested.
+void initializePlayerBackend() {
+  if (Platform.operatingSystem == 'ohos') return;
+  mk.MediaKit.ensureInitialized();
+}
 
 /// Owns at most one native Player. Each source change replaces it, so events
 /// retained by the previous backend cannot enter the next source generation.
