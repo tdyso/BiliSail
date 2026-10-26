@@ -1,7 +1,27 @@
 
 {
   "app": {
-    "signingConfigs": [],
+    // Passwords below are DevEco-encrypted (AES-128-GCM with the material/
+    // key derivation from hvigor-ohos-plugin DecipherUtil); hvigor rejects
+    // plaintext key-store passwords. The material/ directory mirrors
+    // DevEco's signing material, so the ciphertexts decrypt to the original
+    // OpenHarmony test-store password ("123456") during SignHap. The
+    // profile is bound to the debug device UDID.
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "OpenHarmony",
+        "material": {
+          "certpath": "signing/app-debug-chain.cer",
+          "keyAlias": "bilisail debug key",
+          "keyPassword": "00000016fcd8b44e1520e6f0ce5eb43a0d4ada13d3225a057a7af77f6d163ba21b7feb83798fb2b8bb70",
+          "profile": "signing/app-debug-pemfinal.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "signing/OpenHarmony.p12",
+          "storePassword": "0000001607364c28aecfc65fffbb8efd26fb65d860a2cc962ecc1e9f94ba54f39788b2eed374cb190d19"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",

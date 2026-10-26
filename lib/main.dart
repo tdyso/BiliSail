@@ -31,6 +31,25 @@ Future<void> main(List<String> arguments) async {
       smokeHadError = true;
       return true;
     };
+  } else if (Platform.isOhos) {
+    // Temporary OHOS porting diagnosis: dump raw exceptions and top stack
+    // frames without StackFrame parsing, which can itself overflow on the
+    // OHOS engine's small UI-isolate stack.
+    FlutterError.onError = (details) {
+      debugPrint('BILISAIL_DIAG: ${details.exception}');
+      if (details.stack != null) {
+        for (final line in details.stack.toString().split('\n').take(250)) {
+          debugPrint('BILISAIL_DIAG: $line');
+        }
+      }
+    };
+    PlatformDispatcher.instance.onError = (error, stack) {
+      debugPrint('BILISAIL_DIAG_UNCAUGHT: $error');
+      for (final line in stack.toString().split('\n').take(45)) {
+        debugPrint('BILISAIL_DIAG_UNCAUGHT: $line');
+      }
+      return false;
+    };
   }
   LicenseRegistry.addLicense(() async* {
     final license = await rootBundle.loadString(
@@ -91,7 +110,13 @@ Future<void> main(List<String> arguments) async {
       await stdout.flush();
       exit(0);
     }
-  } catch (_) {
+  } catch (error, stack) {
+    if (Platform.isOhos) {
+      debugPrint('BILISAIL_DIAG_MAIN: $error');
+      for (final line in stack.toString().split('\n').take(30)) {
+        debugPrint('BILISAIL_DIAG_MAIN: $line');
+      }
+    }
     if (smoke != null) {
       stderr.writeln('BILISAIL_RELEASE_SMOKE_FAILED:${smoke.phase}');
       exit(1);

@@ -1,0 +1,30 @@
+{
+  "version-code": 1000000,
+  "version-name": "1.0.0",
+  "uuid": "3a7013a6-5380-42c4-a47d-fd848138c041",
+  "type": "debug",
+  "app-distribution-type": "os_integration",
+  "validity": {
+    "not-before": 1792927651,
+    "not-after": 1950694051
+  },
+  "issuer": "OpenHarmony",
+  "bundle-info": {
+    "developer-id": "OpenHarmony",
+    "development-certificate": "MIIB9zCCAZugAwIBAgIEK1hGhjAMBggqhkjOPQQDAgUAMGgxCzAJBgNVBAYTAkNOMRQwEgYDVQQKEwtPcGVuSGFybW9ueTEZMBcGA1UECxMQT3Blbkhhcm1vbnkgVGVhbTEoMCYGA1UEAxMfT3Blbkhhcm1vbnkgQXBwbGljYXRpb24gUmVsZWFzZTAeFw0yMTAyMDIxMjE5MTBaFw00OTEyMzExMjE5MTBaMGgxCzAJBgNVBAYTAkNOMRQwEgYDVQQKEwtPcGVuSGFybW9ueTEZMBcGA1UECxMQT3Blbkhhcm1vbnkgVGVhbTEoMCYGA1UEAxMfT3Blbkhhcm1vbnkgQXBwbGljYXRpb24gUmVsZWFzZTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABNtg4JBClbl92Rgc3jm/RfcAdrHXaM8F0QOiwVEhnV5ebE5jNIYnAx+weFRT3QTyUjRNdhmc2aAzWyi+5t5CoBOjMTAvMA4GA1UdDwEB/wQEAwIHgDAdBgNVHQ4EFgQU+3Gu6GVxEFCwl3Bxmou72g1RWBowDAYIKoZIzj0EAwIFAANIADBFAiB43g1DrhD95TPpbkeaVPZLVJg0GbrJIVoBXM08eevBPAIhALeHrnW5XZp7sykrmn5utdV8Op1nY91R2f26+YVLn4oD",
+    "bundle-name": "dev.bilisail.bilisail",
+    "apl": "normal",
+    "app-feature": "hos_normal_app"
+  },
+  "acls": {
+    "allowed-acls": [
+      ""
+    ]
+  },
+  "debug-info": {
+    "device-id-type": "udid",
+    "device-ids": [
+      "958232EDD6C256D8FC2AC1AB0367A4BDBBDAAACA5B33EBF75D782DF9CD7FCBED"
+    ]
+  }
+}
