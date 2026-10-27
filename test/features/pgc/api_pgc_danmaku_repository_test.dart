@@ -129,7 +129,14 @@ final class _Transport implements ApiTransport, ApiFormTransport {
     this.fields = fields;
     return ApiHttpResponse(
       status,
-      Uint8List.fromList(utf8.encode(jsonEncode({'code': 0, 'data': null}))),
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode({
+            'code': 0,
+            'data': {'dmid': 1},
+          }),
+        ),
+      ),
       {},
     );
   }

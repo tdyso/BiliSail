@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:media_kit/media_kit.dart' as mk;
 
+import 'media_source_validation.dart';
 import 'player_contract.dart';
 import 'android_media_leases.dart';
 import 'player_diagnostics.dart';
@@ -448,11 +449,11 @@ final class MediaKitEngine
       await _releasePlayer();
       if (generation != _generation || _disposed) return;
       try {
-        final (video, audio) = _validate(source, options, generation);
-        final mediaTrack = await _mediaLeases.open(video);
-        final audioTrack = audio == null
+        final validated = validateMediaSource(source, options, generation);
+        final mediaTrack = await _mediaLeases.open(validated.video);
+        final audioTrack = validated.audio == null
             ? null
-            : await _mediaLeases.open(audio);
+            : await _mediaLeases.open(validated.audio);
         if (generation != _generation || _disposed) {
           await _mediaLeases.close();
           return;
@@ -754,119 +755,6 @@ final class MediaKitEngine
     timeout,
     'External audio did not decode.',
   );
-
-  (MediaTrack, MediaTrack?) _validate(
-    ResolvedMediaSource source,
-    OpenOptions options,
-    int generation,
-  ) {
-    final maxBufferAhead = options.maxBufferAhead;
-    if (options.startPosition < Duration.zero ||
-        !options.rate.isFinite ||
-        options.rate <= 0 ||
-        !options.volume.isFinite ||
-        options.volume < 0 ||
-        options.volume > 100 ||
-        !NativeAudioGain.valid(options.audioGainDb) ||
-        options.openTimeout <= Duration.zero ||
-        maxBufferAhead <= Duration.zero ||
-        maxBufferAhead > OpenOptions.maximumBufferAhead) {
-      throw PlayerFailure(
-        PlayerFailureKind.invalidSource,
-        'Invalid playback options.',
-        generation,
-      );
-    }
-    final MediaTrack media;
-    MediaTrack? audio;
-    switch (source) {
-      case DashVideoSource(:final video):
-        if (options.volume != 0) {
-          throw PlayerFailure(
-            PlayerFailureKind.invalidSource,
-            'Video-only DASH requires a muted preview.',
-            generation,
-          );
-        }
-        return (_validateTrack(video, generation), null);
-      case ProgressiveSource(:final media):
-        return (_validateTrack(media, generation), null);
-      case ManifestSource(:final media):
-        return (_validateTrack(media, generation), null);
-      case DashPairSource(
-        video: final video,
-        audio: final selectedAudio,
-        isIntentionallySilent: final silent,
-      ):
-        media = _validateTrack(video, generation);
-        if (selectedAudio == null && !silent) {
-          throw PlayerFailure(
-            PlayerFailureKind.invalidSource,
-            'DASH audio track is missing.',
-            generation,
-          );
-        }
-        audio = selectedAudio == null
-            ? null
-            : _validateTrack(selectedAudio, generation);
-        if (audio != null &&
-            !_sameHeaders(
-              media.requestPolicy.headers,
-              audio.requestPolicy.headers,
-            )) {
-          throw PlayerFailure(
-            PlayerFailureKind.unsupportedHeaders,
-            'DASH tracks require different request headers.',
-            generation,
-          );
-        }
-        return (media, audio);
-    }
-  }
-
-  MediaTrack _validateTrack(MediaTrack track, int generation) {
-    if (!{
-          'http',
-          'https',
-          'file',
-          if (Platform.isAndroid) 'content',
-        }.contains(track.uri.scheme) ||
-        track.uri.host.isEmpty && track.uri.scheme != 'file') {
-      throw PlayerFailure(
-        PlayerFailureKind.invalidSource,
-        'Unsupported media URI.',
-        generation,
-      );
-    }
-    for (final entry in track.requestPolicy.headers.entries) {
-      final name = entry.key.toLowerCase();
-      if (!{'user-agent', 'referer', 'origin', 'accept'}.contains(name) ||
-          entry.key.contains('\r') ||
-          entry.key.contains('\n') ||
-          entry.value.contains('\r') ||
-          entry.value.contains('\n')) {
-        throw PlayerFailure(
-          PlayerFailureKind.unsupportedHeaders,
-          'Unsupported media request header.',
-          generation,
-        );
-      }
-    }
-    return track;
-  }
-
-  bool _sameHeaders(Map<String, String> left, Map<String, String> right) {
-    Map<String, String> normalize(Map<String, String> value) => {
-      for (final entry in value.entries) entry.key.toLowerCase(): entry.value,
-    };
-    final a = normalize(left);
-    final b = normalize(right);
-    if (a.length != b.length) return false;
-    for (final entry in a.entries) {
-      if (b[entry.key] != entry.value) return false;
-    }
-    return true;
-  }
 
   void _subscribe(mk.Player player, int generation) {
     bool active() =>

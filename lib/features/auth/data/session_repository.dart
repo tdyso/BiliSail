@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:bili_api/bili_api.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/network/api_requests.dart';
 import '../../../core/storage/credential_store.dart';
@@ -188,6 +189,11 @@ class SessionRepository implements WebAuthRepository {
         );
       }
     } on ApiFailure catch (error) {
+      debugPrint(
+        'BILISAIL_DIAG_LOGIN: qr login failed ${error.category.name} '
+        '${error.endpointId} business=${error.businessCode} '
+        'http=${error.httpStatus}',
+      );
       if (generation == _generation &&
           error.category != ApiFailureCategory.cancelled) {
         _emit(
@@ -197,7 +203,10 @@ class SessionRepository implements WebAuthRepository {
           ),
         );
       }
-    } catch (_) {
+    } catch (error) {
+      debugPrint(
+        'BILISAIL_DIAG_LOGIN: qr login aborted ${error.runtimeType}: $error',
+      );
       if (generation == _generation) {
         _emit(
           const AuthState(
@@ -218,6 +227,10 @@ class SessionRepository implements WebAuthRepository {
     ApiRequestContext context,
     int generation,
   ) async {
+    // Redacted: cookie names only, no values, no QR keys, no URLs.
+    debugPrint(
+      'BILISAIL_DIAG_LOGIN: confirm jar=[${client.cookieJar.names().join(',')}]',
+    );
     final nav = await client.getNav(context: context);
     if (generation != _generation) return;
     if (!nav.isLogin ||

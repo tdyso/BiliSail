@@ -117,9 +117,14 @@ class VideoActionsController extends Notifier<VideoActionsState> {
     String action,
     Future<void> Function(VideoActionsRepository, RequestCancellation)
     operation,
-    VideoActionsState Function(VideoActionsState) success,
-  ) async {
-    if (!state.signedIn || state.busy || state.uncertain.contains(action)) {
+    VideoActionsState Function(VideoActionsState) success, {
+    bool retryWhenUncertain = false,
+  }) async {
+    // An uncertain write is never replayed automatically; callers must pass
+    // retryWhenUncertain after the user explicitly confirmed a manual retry.
+    if (!state.signedIn ||
+        state.busy ||
+        (state.uncertain.contains(action) && !retryWhenUncertain)) {
       return false;
     }
     final repo = ref.read(videoActionsRepositoryProvider);
@@ -130,11 +135,25 @@ class VideoActionsController extends Notifier<VideoActionsState> {
     state = state.copyWith(busy: true, loading: false);
     try {
       await operation(repo, _cancellation);
-      if (!_current(generation, scope)) return false;
-      state = success(state).copyWith(busy: false, message: '操作成功');
+      if (!_current(generation, scope)) {
+        // A newer generation owns the busy flag; this stale write only stops
+        // blocking the composer when it is still the current state owner.
+        _releaseStaleBusy(generation);
+        return false;
+      }
+      state = success(state).copyWith(
+        busy: false,
+        message: '操作成功',
+        uncertain: Set.unmodifiable(
+          state.uncertain.where((pending) => pending != action),
+        ),
+      );
       return true;
     } catch (e) {
-      if (!_current(generation, scope)) return false;
+      if (!_current(generation, scope)) {
+        _releaseStaleBusy(generation);
+        return false;
+      }
       if (_cancelled(e)) {
         state = state.copyWith(busy: false, loading: false);
         return false;
@@ -149,6 +168,14 @@ class VideoActionsController extends Notifier<VideoActionsState> {
             : state.uncertain,
       );
       return false;
+    }
+  }
+
+  /// Clears `busy` only when the state still belongs to the caller, so a
+  /// rebuilt provider or a newer request keeps its own busy flag.
+  void _releaseStaleBusy(int generation) {
+    if (ref.mounted && generation == _generation) {
+      state = state.copyWith(busy: false);
     }
   }
 
@@ -207,11 +234,13 @@ class VideoActionsController extends Notifier<VideoActionsState> {
     String message,
     Duration position,
     int mode,
-    int color,
-  ) => _perform(
+    int color, {
+    bool retryWhenUncertain = false,
+  }) => _perform(
     'send',
     (r, c) => r.sendDanmaku(target, cid, message, position, mode, color, c),
     (s) => s,
+    retryWhenUncertain: retryWhenUncertain,
   );
   static bool _cancelled(Object e) =>
       e is AppFailure && e.kind == AppFailureKind.cancelled;

@@ -1504,6 +1504,45 @@ class PlaybackSession extends ChangeNotifier {
     }
   }
 
+  /// Echoes a danmaku the user just sent into the cached comment window so
+  /// it displays immediately. The server needs time before the sent danmaku
+  /// reaches its segments, and the active segment is cached, so without the
+  /// echo the comment would never show up in the current session. The entry
+  /// disappears with its segment and is replaced by the server's copy on the
+  /// next refetch.
+  void injectSentDanmaku(
+    String cid,
+    String text,
+    Duration position, {
+    required int mode,
+    required int color,
+  }) {
+    if (_disposed ||
+        _resolving ||
+        media == null ||
+        position.isNegative ||
+        text.trim().isEmpty ||
+        danmakuCid != cid ||
+        !const [1, 4, 5].contains(mode)) {
+      return;
+    }
+    final segment = _commentSegmentAt(position);
+    final existing = _segments[segment];
+    if (existing == null) return;
+    _segments[segment] = existing.appended(
+      TimedComment(
+        id: 'sent:${DateTime.now().microsecondsSinceEpoch}',
+        position: position,
+        text: text,
+        mode: mode,
+        color: color,
+        fontSize: 25,
+        weight: 6,
+      ),
+    );
+    _scheduleCommentRefresh();
+  }
+
   void _ensureComments(Duration position) {
     final cid = danmakuCid;
     if (!_ownerVisible ||
@@ -1989,7 +2028,12 @@ class PlaybackSession extends ChangeNotifier {
         if (_desiredPlaying && !engine.currentSnapshot.desiredPlaying) {
           await _playWithAudioRecovery();
         } else if (!_desiredPlaying &&
-            (forcePause || engine.currentSnapshot.desiredPlaying)) {
+            (forcePause ||
+                engine.currentSnapshot.desiredPlaying ||
+                engine.currentSnapshot.phase == PlaybackPhase.playing)) {
+          // The engine's desired state can already be false while the native
+          // player is still running (a rejected or late pause); the running
+          // phase must still receive the command.
           await engine.pause();
         }
       }

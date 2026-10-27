@@ -4,6 +4,7 @@ import 'package:bilisail/features/auth/application/auth_controller.dart';
 import 'package:bilisail/features/playback/application/playback_session.dart';
 import 'package:bilisail/features/playback/domain/playback_repository.dart';
 import 'package:bilisail/features/video/application/video_actions_controller.dart';
+import 'package:bilisail/features/video/domain/video_actions_repository.dart';
 import 'package:bilisail/features/video/presentation/video_danmaku_composer.dart';
 import 'package:bilisail/domain/video.dart';
 import 'package:bilisail/shared/ui/app_notice.dart';
@@ -42,7 +43,8 @@ void main() {
     'blank input does not send; successful send clears text and busy prevents duplicates',
     (tester) async {
       final repo = FakeActions();
-      await pumpComposer(tester, repo);
+      final session = FakeComposerSession();
+      await pumpComposer(tester, repo, session: session);
       await tester.enterText(find.byType(TextField), '   ');
       await tester.tap(find.text('发送'));
       await tester.pump();
@@ -67,6 +69,9 @@ void main() {
         isEmpty,
       );
       expect(find.text('弹幕已发送'), findsOneWidget);
+      expect(session.echoes, [
+        ('22', 'hello world', const Duration(seconds: 12), 1, 0xffffff),
+      ]);
       expect(repo.calls.where((v) => v.startsWith('send:')), hasLength(1));
     },
   );
@@ -82,6 +87,40 @@ void main() {
     );
     expect(find.text('操作失败，请稍后重试'), findsOneWidget);
   });
+  testWidgets('uncertain send keeps a confirmed manual retry path', (
+    tester,
+  ) async {
+    final repo = FakeActions()..failure = const UnknownWriteOutcome();
+    await pumpComposer(tester, repo);
+    await tester.enterText(find.byType(TextField), 'maybe sent');
+    await tester.tap(find.text('发送'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('结果暂时无法确认'), findsOneWidget);
+    final draft = tester
+        .widget<TextField>(find.byType(TextField))
+        .controller!
+        .text;
+    expect(draft, 'maybe sent');
+    // The send button must stay available so the user can verify and retry.
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, '发送'))
+          .onPressed,
+      isNotNull,
+    );
+    repo.failure = null;
+    await tester.tap(find.text('发送'));
+    await tester.pumpAndSettle();
+    expect(find.text('上次发送结果未确认'), findsOneWidget);
+    await tester.tap(find.text('确认重发'));
+    await tester.pumpAndSettle();
+    expect(repo.calls.where((v) => v.startsWith('send:')), hasLength(2));
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      isEmpty,
+    );
+    expect(find.text('弹幕已发送'), findsOneWidget);
+  });
 }
 
 Future<void> pumpComposer(
@@ -90,15 +129,16 @@ Future<void> pumpComposer(
   bool signedIn = true,
   VoidCallback? onLogin,
   double textScale = 1,
+  FakeComposerSession? session,
 }) async {
-  final session = FakeComposerSession();
-  addTearDown(session.dispose);
+  final composerSession = session ?? FakeComposerSession();
+  addTearDown(composerSession.dispose);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(FakeAuth(signedIn)),
         videoActionsRepositoryProvider.overrideWithValue(repo),
-        playbackSessionProvider.overrideWithValue(session),
+        playbackSessionProvider.overrideWithValue(composerSession),
       ],
       child: MaterialApp(
         builder: AppNoticeHost.builder,
@@ -142,6 +182,18 @@ class FakeComposerSession extends ChangeNotifier implements PlaybackSession {
       duration: Duration(minutes: 2),
     ),
   );
+  final echoes = <(String, String, Duration, int, int)>[];
+  @override
+  void injectSentDanmaku(
+    String cid,
+    String text,
+    Duration position, {
+    required int mode,
+    required int color,
+  }) {
+    echoes.add((cid, text, position, mode, color));
+  }
+
   @override
   void dispose() {
     snapshots.dispose();

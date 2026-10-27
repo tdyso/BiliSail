@@ -66,10 +66,15 @@ final class ApiVideoActionsRepository implements VideoActionsRepository {
       await operation(context);
     } on ApiFailure catch (e) {
       if (context.cancellation?.isCancelled == true) rethrow;
+      // A definite rejection (4xx other than the timeout/rate-limit statuses
+      // mapped elsewhere) proves nothing was written, so the caller can report
+      // a failure and let the user retry. Only a lost connection, a timeout,
+      // an unparseable body or a server error leaves the outcome unknown.
       if (e.category == ApiFailureCategory.network ||
           e.category == ApiFailureCategory.timeout ||
           e.category == ApiFailureCategory.protocol ||
-          e.category == ApiFailureCategory.http) {
+          (e.category == ApiFailureCategory.http &&
+              (e.httpStatus ?? 0) >= 500)) {
         throw const UnknownWriteOutcome();
       }
       rethrow;

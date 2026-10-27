@@ -95,6 +95,25 @@ void main() {
     expect(await controller.send('8', '测试', Duration.zero, 1, 0xffffff), false);
     expect(repo.writes, 1);
   });
+  test('a confirmed manual resend clears the uncertain send', () async {
+    repo.failure = const UnknownWriteOutcome();
+    expect(await controller.send('8', '测试', Duration.zero, 1, 0xffffff), false);
+    expect(state().uncertain, contains('send'));
+    repo.failure = null;
+    expect(
+      await controller.send(
+        '8',
+        '测试',
+        Duration.zero,
+        1,
+        0xffffff,
+        retryWhenUncertain: true,
+      ),
+      true,
+    );
+    expect(state().uncertain, isEmpty);
+    expect(repo.writes, 2);
+  });
   test('account change rejects late successful write', () async {
     repo.pending = Completer<void>();
     final first = controller.toggleLike();

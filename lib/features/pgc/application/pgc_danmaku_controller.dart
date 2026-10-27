@@ -122,6 +122,15 @@ final class PgcDanmakuController extends Notifier<PgcDanmakuState> {
         cancellation: cancellation,
       );
       if (!current()) return false;
+      // The server delivers sent danmaku through segments with a delay while
+      // the active segment stays cached, so echo it locally to display now.
+      session.injectSentDanmaku(
+        target.cid,
+        message,
+        position,
+        mode: mode,
+        color: color,
+      );
       state = const PgcDanmakuState(signedIn: true, message: '弹幕已发送');
       return true;
     } catch (error) {

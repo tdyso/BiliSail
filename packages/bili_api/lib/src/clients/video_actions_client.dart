@@ -189,7 +189,10 @@ final class VideoActionsClient {
         color > 0xffffff) {
       throw ArgumentError('Invalid danmaku');
     }
-    await api.submitForm('/x/v2/dm/post', 'danmaku_send', {
+    // The web sender posts to /x/v2/dm/post. A non-existent /post/post path
+    // answered 404 on the live host, which the composer reported as an
+    // unconfirmed result even though nothing was submitted.
+    final dmid = await api.submitForm('/x/v2/dm/post', 'danmaku_send', {
       'bvid': bvid,
       'oid': cid,
       'type': '1',
@@ -201,7 +204,43 @@ final class VideoActionsClient {
       'pool': '0',
       'plat': '1',
       'rnd': '${DateTime.now().millisecondsSinceEpoch ~/ 1000}',
+      'bmid': ?_senderMid(),
     }, context: context);
+    // A success without a danmaku id is the hollow-acceptance pattern: treat
+    // it as a protocol failure so the composer never claims a false success.
+    // Some responses only carry the string form of the id to avoid losing
+    // precision in JavaScript, so either field proves acceptance.
+    final accepted = switch (dmid) {
+      final Map<Object?, Object?> data =>
+        _danmakuId(data['dmid']) || _danmakuId(data['dmid_str']),
+      final String text => text.isNotEmpty,
+      _ => false,
+    };
+    if (!accepted) {
+      throw ApiFailure(ApiFailureCategory.protocol, 'danmaku_send');
+    }
+  }
+
+  static bool _danmakuId(Object? value) => switch (value) {
+    final int id => id > 0,
+    final String id => id.isNotEmpty && id != '0',
+    _ => false,
+  };
+
+  /// The web sender identifies itself with `bmid`; it is the DedeUserID
+  /// cookie, which the mutation guard already guarantees for signed-in sends.
+  String? _senderMid() {
+    final header = api.cookieJar.headerFor(Uri.https('api.bilibili.com', '/'));
+    if (header == null) return null;
+    for (final pair in header.split('; ')) {
+      final separator = pair.indexOf('=');
+      if (separator > 0 &&
+          pair.substring(0, separator) == 'DedeUserID' &&
+          pair.substring(separator + 1).isNotEmpty) {
+        return pair.substring(separator + 1);
+      }
+    }
+    return null;
   }
 
   static void _bvid(String bvid) {

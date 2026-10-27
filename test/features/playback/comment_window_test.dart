@@ -47,6 +47,22 @@ void main() {
     },
   );
 
+  test('appended inserts the sent-danmaku echo in position order', () {
+    final segment = CommentSegment([_comment('b', 200), _comment('a', 100)]);
+    final appended = segment
+        .appended(_comment('mid', 150))
+        .appended(_comment('head', 50))
+        .appended(_comment('tail', 250));
+    expect(
+      mergeCommentWindow(
+        [appended],
+        Duration.zero,
+        const Duration(minutes: 5),
+      ).map((comment) => comment.id),
+      ['head', 'a', 'mid', 'b', 'tail'],
+    );
+  });
+
   test('three dense segments retain the complete authoritative window', () {
     final segments = [
       for (var segment = 0; segment < 3; segment++)

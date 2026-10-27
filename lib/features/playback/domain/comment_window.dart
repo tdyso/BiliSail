@@ -16,6 +16,18 @@ final class CommentSegment {
   Iterable<TimedComment> between(Duration start, Duration end) =>
       _comments.getRange(_bound(start), _bound(end, after: true));
 
+  /// Returns a copy with [comment] inserted in position order. Server
+  /// segments are immutable; only the local echo of a just-sent danmaku
+  /// appends, before the server delivers it through a later refetch.
+  CommentSegment appended(TimedComment comment) {
+    final index = _bound(comment.position);
+    return CommentSegment([
+      ..._comments.take(index),
+      comment,
+      ..._comments.skip(index),
+    ]);
+  }
+
   int _bound(Duration position, {bool after = false}) {
     var low = 0;
     var high = _comments.length;

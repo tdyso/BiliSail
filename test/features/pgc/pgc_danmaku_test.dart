@@ -51,6 +51,9 @@ void main() {
       expect(await sending, true);
       expect(harness.state.busy, false);
       expect(harness.state.message, '弹幕已发送');
+      expect(harness.session.echoes, [
+        ('101', '你好 & + %', const Duration(milliseconds: 12345), 5, 0x123456),
+      ]);
     },
   );
 
@@ -318,6 +321,17 @@ final class _Session extends ChangeNotifier implements PlaybackSession {
       duration: Duration(minutes: 20),
     ),
   );
+  final echoes = <(String, String, Duration, int, int)>[];
+  @override
+  void injectSentDanmaku(
+    String cid,
+    String text,
+    Duration position, {
+    required int mode,
+    required int color,
+  }) {
+    echoes.add((cid, text, position, mode, color));
+  }
   void switchEpisode(String id, String cid) {
     sourceGeneration++;
     contentTarget = PgcPlaybackTarget(id, cid: cid);

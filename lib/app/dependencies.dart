@@ -203,7 +203,8 @@ class AppDependencies {
       ),
     );
     final cardPreviews = VideoCardPreviewPlayback(
-      createEngine: () => MediaKitEngine(onDiagnostic: playbackLog?.record),
+      createEngine: () =>
+          createPlatformPlayerEngine(onDiagnostic: playbackLog?.record),
     );
     final playbackRateMemory = PlaybackRateMemory();
     final playbackVolumeMemory = PlaybackVolumeMemory();
@@ -226,7 +227,9 @@ class AppDependencies {
           sponsorRepository: ApiSponsorRepository(
             SponsorBlockClient(sponsorTransport),
           ),
-          engine: MediaKitEngine(onDiagnostic: playbackLog?.record),
+          engine: createPlatformPlayerEngine(
+            onDiagnostic: playbackLog?.record,
+          ),
           repository: repository,
           historyRepository: ApiPlaybackHistoryRepository(
             PlaybackHistoryClient(api),
@@ -256,7 +259,7 @@ class AppDependencies {
     session = SessionRepository(
       api: api,
       requests: requests,
-      credentials: credentials ?? SystemCredentialStore(),
+      credentials: credentials ?? defaultCredentialStore(),
       onSessionChanged: (scope) async {
         try {
           await downloads.sessionChanged();

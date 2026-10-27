@@ -53,9 +53,15 @@ void main() {
   });
 
   test('action parameters retain IDs, milliseconds and raw text', () async {
-    final transport = _Transport();
+    final transport = _Transport()..result = response({'dmid': 1});
+    final jar = ApiCookieJar()
+      ..receive(Uri.https('api.bilibili.com', '/'), [
+        'SESSDATA=fixture-session; Path=/; Secure',
+        'bili_jct=fixture-csrf; Path=/; Secure',
+        'DedeUserID=9007199254740991; Path=/; Secure',
+      ]);
     final client = VideoActionsClient(
-      BiliApiClient(transport: transport, cookieJar: cookies()),
+      BiliApiClient(transport: transport, cookieJar: jar),
     );
     await client.favorite('9007199254740993', ['11', '12'], ['13']);
     expect(transport.fields, {
@@ -78,10 +84,53 @@ void main() {
     expect(transport.fields['progress'], '12345');
     expect(transport.fields['mode'], '5');
     expect(transport.fields['color'], '${0x123456}');
+    expect(transport.fields['bmid'], '9007199254740991');
+    expect(transport.uri?.path, '/x/v2/dm/post');
     await client.like('BV1234567890', false);
     expect(transport.fields['like'], '2');
     expect(transport.posts, 3);
   });
+
+  test('danmaku acceptance from the string danmaku id is a success', () async {
+    final transport = _Transport()
+      ..result = response({'dmid': 0, 'dmid_str': '9007199254740995'});
+    final client = VideoActionsClient(
+      BiliApiClient(transport: transport, cookieJar: cookies()),
+    );
+    await client.sendDanmaku(
+      'BV1234567890',
+      '9007199254740993',
+      'fixture',
+      const Duration(seconds: 1),
+    );
+    expect(transport.posts, 1);
+  });
+
+  test(
+    'danmaku acceptance without a danmaku id is a protocol failure',
+    () async {
+      final transport = _Transport()..result = response(null);
+      final client = VideoActionsClient(
+        BiliApiClient(transport: transport, cookieJar: cookies()),
+      );
+      await expectLater(
+        client.sendDanmaku(
+          'BV1234567890',
+          '9007199254740993',
+          'fixture',
+          const Duration(seconds: 1),
+        ),
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.category,
+            'category',
+            ApiFailureCategory.protocol,
+          ),
+        ),
+      );
+      expect(transport.posts, 1);
+    },
+  );
 
   test(
     'comment submission preserves server visibility and toast without replay',

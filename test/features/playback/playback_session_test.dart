@@ -1333,6 +1333,34 @@ void main() {
     },
   );
 
+  test(
+    'pause still reaches a running player whose engine intent is already off',
+    () async {
+      final engine = _FakeEngine();
+      final repository = _FakeRepository();
+      final session = PlaybackSession(
+        engine: engine,
+        repository: repository,
+        progress: _FakeProgress(),
+        accountScope: () => 'guest',
+      );
+      addTearDown(session.close);
+      final opening = session.open(_detail('one'), _part('one'));
+      await _flush();
+      repository.pendingResolves['one']!.complete(_backupMedia());
+      await opening;
+      expect(engine.currentSnapshot.phase, PlaybackPhase.playing);
+      // A native pause that never ran leaves the engine intent off while the
+      // picture keeps advancing, so the next pause must not be skipped.
+      engine.emit(engine.currentSnapshot.copyWith(desiredPlaying: false));
+      final pauses = engine.pauseCount;
+      await session.togglePlaying();
+      expect(engine.pauseCount, pauses + 1);
+      expect(engine.currentSnapshot.phase, PlaybackPhase.paused);
+      expect(session.snapshots.value.desiredPlaying, isFalse);
+    },
+  );
+
   for (final exhaustedBy in ['audio', 'open', 'noBackup', 'invalidSource']) {
     test('audio recovery is bounded after $exhaustedBy', () async {
       final engine = _FakeEngine()
@@ -3361,6 +3389,55 @@ void main() {
       await session.close();
     },
   );
+
+  test('sent danmaku echoes into the cached window immediately', () async {
+    final engine = _FakeEngine();
+    final repository = _FakeRepository(autoResolve: true);
+    final session = PlaybackSession(
+      engine: engine,
+      repository: repository,
+      progress: _FakeProgress(),
+      accountScope: () => 'guest',
+      danmakuNow: () => Duration.zero,
+    );
+    addTearDown(session.close);
+    await session.open(_detail('one'), _part('one'));
+    repository.pendingComments['one:1']!.complete([_comment('existing', 20)]);
+    await _flush();
+    session.danmaku.setViewport(width: 800, height: 450);
+    await session.seek(const Duration(seconds: 30));
+    session.injectSentDanmaku(
+      'one',
+      'my own',
+      const Duration(seconds: 30),
+      mode: 1,
+      color: 0xffffff,
+    );
+    await _flush();
+    final echoes = session.danmaku
+        .frame()
+        .map((item) => item.event.id)
+        .where((id) => id.startsWith('sent:'))
+        .toSet();
+    expect(echoes, hasLength(1));
+    // A mismatched cid must never leak into the active window.
+    session.injectSentDanmaku(
+      'other',
+      'nope',
+      const Duration(seconds: 31),
+      mode: 1,
+      color: 0xffffff,
+    );
+    await _flush();
+    expect(
+      session.danmaku
+          .frame()
+          .map((item) => item.event.id)
+          .where((id) => id.startsWith('sent:')),
+      echoes,
+    );
+    await session.close();
+  });
 
   test(
     'fast playback keeps visible comments across media window refreshes',

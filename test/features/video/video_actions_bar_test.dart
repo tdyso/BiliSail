@@ -146,6 +146,25 @@ void main() {
     expect(repo.calls, ['load', 'folders', 'favorite:33:']);
     expect(find.byTooltip('已收藏'), findsOneWidget);
   });
+  testWidgets('favorite dialog preselects and can remove an owned folder', (
+    tester,
+  ) async {
+    enableDesktopWindowing(tester);
+    final repo = FakeActions()..foldersContainVideo = true;
+    await pumpActions(tester, repo, signedIn: true);
+    await tester.tap(find.byTooltip('收藏 0'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
+      isTrue,
+    );
+    await tester.tap(find.text('测试收藏夹'));
+    await tester.pump();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(repo.calls, ['load', 'folders', 'favorite::33']);
+    expect(find.byTooltip('已收藏'), findsNothing);
+  });
 }
 
 Future<void> pumpActions(
@@ -206,6 +225,8 @@ class FakeActions implements VideoActionsRepository {
   final calls = <String>[];
   Completer<void>? pending;
   bool fail = false;
+  Object? failure;
+  bool foldersContainVideo = false;
   String? sentText;
   Duration? sentPosition;
   @override
@@ -213,6 +234,7 @@ class FakeActions implements VideoActionsRepository {
   Future<void> write(String call) async {
     calls.add(call);
     if (pending != null) await pending!.future;
+    if (failure != null) throw failure!;
     if (fail) throw StateError('write failed');
   }
 
@@ -231,8 +253,12 @@ class FakeActions implements VideoActionsRepository {
     RequestCancellation cancellation,
   ) async {
     calls.add('folders');
-    return const [
-      FavoriteFolder(id: '33', title: '测试收藏夹', containsVideo: false),
+    return [
+      FavoriteFolder(
+        id: '33',
+        title: '测试收藏夹',
+        containsVideo: foldersContainVideo,
+      ),
     ];
   }
 

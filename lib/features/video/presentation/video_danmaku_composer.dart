@@ -52,6 +52,13 @@ class _VideoDanmakuComposerState extends ConsumerState<VideoDanmakuComposer> {
     }
     final text = _text.text.trim();
     if (text.isEmpty) return;
+    var retryWhenUncertain = false;
+    if (ref.read(provider).uncertain.contains('send')) {
+      // An earlier send may already have reached the server. Replaying is only
+      // allowed after the user verified the playback/page state and confirmed.
+      retryWhenUncertain = await _confirmUncertainResend() ?? false;
+      if (!retryWhenUncertain) return;
+    }
     final session = ref.read(playbackSessionProvider);
     if (session.detail?.summary.id != widget.detail.summary.id ||
         session.part?.cid != widget.part.cid ||
@@ -59,22 +66,53 @@ class _VideoDanmakuComposerState extends ConsumerState<VideoDanmakuComposer> {
       return;
     }
     final sendingCid = widget.part.cid;
+    final position = session.snapshots.value.position;
     final successful = await ref
         .read(provider.notifier)
         .send(
-          widget.part.cid,
+          sendingCid,
           text,
-          session.snapshots.value.position,
+          position,
           _mode,
           _color,
+          retryWhenUncertain: retryWhenUncertain,
         );
     if (!mounted || widget.part.cid != sendingCid) return;
+    if (successful) {
+      // The server delivers sent danmaku through segments with a delay while
+      // the active segment stays cached, so echo it locally to display now.
+      session.injectSentDanmaku(
+        sendingCid,
+        text,
+        position,
+        mode: _mode,
+        color: _color,
+      );
+    }
     if (successful && _text.text.trim() == text) _text.clear();
     final message = ref.read(provider).message;
     if (message != null) {
       showAppNotice(context, successful ? '弹幕已发送' : message);
     }
   }
+
+  Future<bool?> _confirmUncertainResend() => showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('上次发送结果未确认'),
+      content: const Text('上一条弹幕可能已经发送成功。请先在播放器或哔哩哔哩网站核对，确认没有显示后再重发，未自动重试。'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('取消'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('确认重发'),
+        ),
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -141,9 +179,7 @@ class _VideoDanmakuComposerState extends ConsumerState<VideoDanmakuComposer> {
             ),
           ),
           TextButton(
-            onPressed: state.busy || state.uncertain.contains('send')
-                ? null
-                : _send,
+            onPressed: state.busy ? null : _send,
             child: Text(
               state.busy ? '发送中' : '发送',
               style: const TextStyle(fontSize: 12),

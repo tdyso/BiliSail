@@ -5,6 +5,10 @@ final class ApiCookieJar {
 
   void clear() => _cookies.clear();
 
+  /// Redacted diagnostic aid: cookie names only, never values or domains.
+  List<String> names() =>
+      _cookies.map((entry) => entry.cookie.name).toList();
+
   /// Serialize only into a platform credential store, never ordinary settings.
   Map<String, Object?> exportForSecureStorage() => {
     'version': 1,
