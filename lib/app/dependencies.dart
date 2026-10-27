@@ -227,9 +227,7 @@ class AppDependencies {
           sponsorRepository: ApiSponsorRepository(
             SponsorBlockClient(sponsorTransport),
           ),
-          engine: createPlatformPlayerEngine(
-            onDiagnostic: playbackLog?.record,
-          ),
+          engine: createPlatformPlayerEngine(onDiagnostic: playbackLog?.record),
           repository: repository,
           historyRepository: ApiPlaybackHistoryRepository(
             PlaybackHistoryClient(api),

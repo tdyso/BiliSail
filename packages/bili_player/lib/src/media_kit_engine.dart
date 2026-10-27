@@ -450,10 +450,11 @@ final class MediaKitEngine
       if (generation != _generation || _disposed) return;
       try {
         final validated = validateMediaSource(source, options, generation);
+        final audio = validated.audio;
         final mediaTrack = await _mediaLeases.open(validated.video);
-        final audioTrack = validated.audio == null
+        final audioTrack = audio == null
             ? null
-            : await _mediaLeases.open(validated.audio);
+            : await _mediaLeases.open(audio);
         if (generation != _generation || _disposed) {
           await _mediaLeases.close();
           return;

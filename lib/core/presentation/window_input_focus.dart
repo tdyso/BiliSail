@@ -19,7 +19,11 @@ final class WindowInputFocus with WidgetsBindingObserver {
   static const _channel = MethodChannel('bilisail/application_window');
 
   Future<void> synchronizeNativeFocusIfSupported() async {
-    if (Platform.isMacOS) await synchronizeNativeFocus();
+    // Widget tests run on the host macOS platform but have no native window
+    // channel; the bounded lookup there leaves a pending timer behind.
+    if (Platform.isMacOS && Platform.environment['FLUTTER_TEST'] != 'true') {
+      await synchronizeNativeFocus();
+    }
   }
 
   // Read keyWindow after native creation, not mainWindow or a focus request.
